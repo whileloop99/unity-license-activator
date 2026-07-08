@@ -320,7 +320,9 @@ func run(ctx context.Context, cwd string) error {
 	))
 	// Wait for final page with commit/download button
 	waitTimeout(ctx, 15*time.Second, chromedp.WaitVisible(`input[name="commit"]`, chromedp.ByQuery))
-	// Poll for .ulf file (SetDownloadBehavior saves to cwd; check outputDir too)
+	if elemExists(ctx, `input[name="commit"]`) {
+		chromedp.Run(ctx, chromedp.Click(`input[name="commit"]`, chromedp.ByQuery))
+	}
 	var ulfPath string
 	ulfDest := filepath.Join(outputDir, ulfName)
 	pollDirs := []string{cwd, outputDir}
