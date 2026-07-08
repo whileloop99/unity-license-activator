@@ -298,7 +298,7 @@ func run(ctx context.Context, cwd string) error {
 	}
 
 	fmt.Printf("%s [INFO] Uploading ALF...\n", ts())
-	alfPath := filepath.Join(cwd, alfFile)
+	alfPath := alfFile // already absolute (resolved in main)
 	if err := chromedp.Run(ctx,
 		chromedp.SetUploadFiles(`input[name="licenseFile"]`, []string{alfPath}, chromedp.ByQuery),
 	); err != nil {
