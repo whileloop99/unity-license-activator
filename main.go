@@ -312,22 +312,88 @@ func run(ctx context.Context, cwd string) error {
 
 	// 8. Select personal license
 	fmt.Printf("%s [INFO] Selecting license type...\n", ts())
-	chromedp.Run(ctx, chromedp.Evaluate(
-		`document.querySelector('input[id="type_personal"][value="personal"]')?.click()`, nil,
-	))
-	chromedp.Run(ctx, chromedp.Evaluate(
-		`document.querySelector('input[id="option3"][name="personal_capacity"]')?.click()`, nil,
-	))
-	// Wait for final page with commit/download button
-	waitTimeout(ctx, 15*time.Second, chromedp.WaitVisible(`input[name="commit"]`, chromedp.ByQuery))
-	if elemExists(ctx, `input[name="commit"]`) {
-		chromedp.Run(ctx, chromedp.Click(`input[name="commit"]`, chromedp.ByQuery))
+	chromedp.Run(ctx, chromedp.Location(&currentURL))
+	fmt.Printf("%s [DBG] pre-select URL: %s\n", ts(), currentURL)
+
+	personalExists := elemExists(ctx, `input[id="type_personal"][value="personal"]`)
+	fmt.Printf("%s [DBG] type_personal exists: %v\n", ts(), personalExists)
+	if personalExists {
+		chromedp.Run(ctx, chromedp.Evaluate(
+			`document.querySelector('input[id="type_personal"][value="personal"]')?.click()`, nil,
+		))
+	} else {
+		// Dump visible radio inputs to see what selectors are present
+		var radios string
+		chromedp.Run(ctx, chromedp.Evaluate(
+			`Array.from(document.querySelectorAll('input[type="radio"]')).map(e=>e.id+'/'+e.name+'/'+e.value).join(', ')`, &radios,
+		))
+		fmt.Printf("%s [DBG] radios on page: %s\n", ts(), radios)
 	}
+	sleep(500)
+
+	option3Exists := elemExists(ctx, `input[id="option3"][name="personal_capacity"]`)
+	fmt.Printf("%s [DBG] option3 exists: %v\n", ts(), option3Exists)
+	if option3Exists {
+		chromedp.Run(ctx, chromedp.Evaluate(
+			`document.querySelector('input[id="option3"][name="personal_capacity"]')?.click()`, nil,
+		))
+	}
+	sleep(500)
+
+	commitExists := elemExists(ctx, `input[name="commit"]`)
+	fmt.Printf("%s [DBG] commit button exists (immediate): %v\n", ts(), commitExists)
+	waitTimeout(ctx, 15*time.Second, chromedp.WaitVisible(`input[name="commit"]`, chromedp.ByQuery))
+	commitExists = elemExists(ctx, `input[name="commit"]`)
+	fmt.Printf("%s [DBG] commit button exists (after wait): %v\n", ts(), commitExists)
+
+	if commitExists {
+		// Log button value/label
+		var commitVal string
+		chromedp.Run(ctx, chromedp.Evaluate(`document.querySelector('input[name="commit"]')?.value`, &commitVal))
+		fmt.Printf("%s [DBG] commit button value: %q\n", ts(), commitVal)
+		chromedp.Run(ctx, chromedp.Click(`input[name="commit"]`, chromedp.ByQuery))
+		sleep(1000)
+		chromedp.Run(ctx, chromedp.Location(&currentURL))
+		fmt.Printf("%s [DBG] post-commit URL: %s\n", ts(), currentURL)
+	} else {
+		// Screenshot to show what's on screen
+		var buf []byte
+		chromedp.Run(ctx, chromedp.FullScreenshot(&buf, 90))
+		os.WriteFile(filepath.Join(outputDir, "no-commit.png"), buf, 0644)
+		fmt.Printf("%s [WARN] commit button not found; screenshot → no-commit.png\n", ts())
+	}
+
+	// Screenshot right before polling (shows state after commit click)
+	{
+		var buf []byte
+		chromedp.Run(ctx, chromedp.FullScreenshot(&buf, 90))
+		os.WriteFile(filepath.Join(outputDir, "pre-poll.png"), buf, 0644)
+	}
+
 	var ulfPath string
 	ulfDest := filepath.Join(outputDir, ulfName)
-	pollDirs := []string{cwd, outputDir}
-	for i := 0; i < 60; i++ {
+	// Also check default Chrome download dirs in case SetDownloadBehavior had no effect
+	homeDir, _ := os.UserHomeDir()
+	pollDirs := []string{cwd, outputDir, filepath.Join(homeDir, "Downloads"), "/tmp"}
+	for i := range 60 {
 		sleep(500)
+		if i%6 == 0 { // every 3s log dir contents
+			chromedp.Run(ctx, chromedp.Location(&currentURL))
+			fmt.Printf("%s [DBG] poll %d/60 URL: %s\n", ts(), i, currentURL)
+			for _, d := range pollDirs {
+				entries, err := os.ReadDir(d)
+				if err != nil {
+					continue
+				}
+				var names []string
+				for _, e := range entries {
+					names = append(names, e.Name())
+				}
+				if len(names) > 0 {
+					fmt.Printf("%s [DBG] dir %s: %v\n", ts(), d, names)
+				}
+			}
+		}
 		for _, d := range pollDirs {
 			entries, _ := os.ReadDir(d)
 			for _, e := range entries {
@@ -355,6 +421,7 @@ func run(ctx context.Context, cwd string) error {
 		var buf []byte
 		chromedp.Run(ctx, chromedp.FullScreenshot(&buf, 90))
 		os.WriteFile(filepath.Join(outputDir, "state.png"), buf, 0644)
+		fmt.Printf("%s [WARN] no ULF after poll; state.png saved\n", ts())
 	}
 	return nil
 }
