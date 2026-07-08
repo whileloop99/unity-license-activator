@@ -43,6 +43,7 @@ import (
 
 	"github.com/chromedp/cdproto/browser"
 	"github.com/chromedp/chromedp"
+	"github.com/go-rod/rod/lib/launcher"
 )
 
 // ── constants ────────────────────────────────────────────────────────────────
@@ -396,7 +397,15 @@ func main() {
 	}
 	os.MkdirAll(outputDir, 0755)
 
+	// Auto-download Chrome if not in PATH (cache at ~/.cache/rod/browser)
+	browserPath, err := launcher.NewBrowser().Get()
+	if err != nil {
+		log.Fatalf("browser download: %v", err)
+	}
+	fmt.Printf("%s [INFO] Chrome: %s\n", ts(), browserPath)
+
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
+		chromedp.ExecPath(browserPath),
 		chromedp.Flag("headless", true),
 		chromedp.Flag("no-sandbox", true),
 		chromedp.Flag("disable-setuid-sandbox", true),
