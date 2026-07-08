@@ -1,4 +1,4 @@
-module activate
+module github.com/whileloop99/unity-license-activator
 
 go 1.21
 
