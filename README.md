@@ -5,7 +5,7 @@ Automated Unity personal license activation via chromedp (headless Chrome).
 ## Usage
 
 ```sh
-go run . --email <email> --password <pass> --alf <file.alf> [flags]
+go run . [flags]
 ```
 
 ## Flags
