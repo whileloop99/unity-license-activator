@@ -2,13 +2,31 @@
 
 Automated Unity personal license activation via [playwright-go](https://github.com/mxschmitt/playwright-go) (headless Chromium).
 
-## Quick start
+## Usage
 
 ```sh
-go run . --email=user@example.com \
-         --password=secret \
-         --alf=./Unity_v2022.3.31f1.alf \
-         --totp=JBSWY3DPEHPK3PXP
+GOPROXY=direct go run github.com/whileloop99/unity-license-activator@latest \
+  --email=<your-email> \
+  --password=<your-password> \
+  --alf=<path-to.alf> \
+  --totp=<your-base32-totp-secret>
+```
+
+### Docker
+
+```sh
+docker run --rm -v ./Unity_v2022.3.31f1.alf:/data/license.alf:ro \
+  ghcr.io/whileloop99/unity-license-activator:latest \
+  --email=<your-email> \
+  --password=<your-password> \
+  --alf=/data/license.alf \
+  --totp=<your-base32-totp-secret>
+```
+
+## One-liner
+
+```sh
+GOPROXY=direct go run github.com/whileloop99/unity-license-activator@latest --email=user@example.com --password=secret --alf=./Unity_v2022.3.31f1.alf --totp=JBSWY3DPEHPK3PXP
 ```
 
 ## Flags
@@ -29,53 +47,33 @@ go run . --email=user@example.com \
 **First run** (login + 2FA + download, ~34s):
 
 ```sh
-go run . --email=user@example.com \
-         --password=secret \
-         --alf=./Unity_v2022.3.31f1.alf \
-         --totp=JBSWY3DPEHPK3PXP
+GOPROXY=direct go run github.com/whileloop99/unity-license-activator@latest \
+  --email=user@example.com \
+  --password=secret \
+  --alf=./Unity_v2022.3.31f1.alf \
+  --totp=JBSWY3DPEHPK3PXP
 ```
 
 **Subsequent runs** (session reuse, ~18s):
 
 ```sh
-go run . --email=user@example.com \
-         --password=secret \
-         --alf=./Unity_v2022.3.31f1.alf \
-         --totp=JBSWY3DPEHPK3PXP \
-         --data-dir=.chrome-data
+GOPROXY=direct go run github.com/whileloop99/unity-license-activator@latest \
+  --email=user@example.com \
+  --password=secret \
+  --alf=./Unity_v2022.3.31f1.alf \
+  --totp=JBSWY3DPEHPK3PXP \
+  --data-dir=.chrome-data
 ```
 
-## Docker
-
-Build and run inside a container — no Go toolchain required.
+**Docker Compose** (no Go needed):
 
 ```sh
-docker compose build
 docker compose run --rm activator \
   --email=user@example.com \
   --password=secret \
   --alf=/data/Unity_v2022.3.31f1.alf \
   --totp=JBSWY3DPEHPK3PXP
 ```
-
-Or use a `.env` file:
-
-```sh
-# .env
-EMAIL=user@example.com
-PASSWORD=secret
-TOTP=JBSWY3DPEHPK3PXP
-ALF_FILE=Unity_v2022.3.31f1.alf
-```
-
-Then:
-
-```sh
-docker compose run --rm activator
-```
-
-The Docker image includes all dependencies (Chromium, playwright driver, system libraries).
-The `--skip-install` flag is enabled by default in the container entrypoint.
 
 ## Output
 
