@@ -11,7 +11,7 @@
 //	--alf           Path to .alf license request file (required)
 //	--totp          Base32 TOTP secret (required if 2FA is enabled)
 //	--ulf-name      ULF output filename (default: unity.ulf)
-//	--output        Output directory for ULF, screenshots, error dumps (default: .output)
+//	--output        Output directory for ULF, error dumps (default: .output)
 //	--data-dir      Persistent Chrome profile dir — reuses session on subsequent
 //	                runs, skipping login (~18s vs ~34s). Created automatically.
 //	--skip-install  Skip playwright browser installation check (use when browser
@@ -19,12 +19,15 @@
 //
 // Output directory (--output) contains:
 //
-//	{ulf-name}   Downloaded license file
-//	state.png    Screenshot on failure
-//	error.png    Screenshot on crash
-//	error.html   Page HTML on crash
+//	{ulf-name}      Downloaded license file
+//	error.png       Screenshot on crash
+//	error.html      Page HTML on crash
 //
-// Flow: navigate → [login → TFA if needed →] upload ALF → select license → download ULF.
+// Parameters are validated early (before starting the browser) to avoid
+// wasting time/resources on invalid input.
+//
+// Flow: navigate → [login + TFA (if needed) →] ToS accept → upload ALF
+//       → [re-login + retry on session expiry] → select license → download ULF.
 // If the server redirects to login after ALF submit (cached-page session expiry),
 // the tool re-logs in and retries the upload automatically.
 // With --data-dir: subsequent runs skip login (session reuse ~18s total).
@@ -348,15 +351,13 @@ func run(page playwright.Page) error {
 
 	// Verify upload field present before proceeding
 	if !elemExists(page, `input[name="licenseFile"]`) {
-		fmt.Printf("%s [WARN] No license upload field\n", ts())
-		snap(page, "state.png")
 		res, _ := page.Evaluate(`document.body.textContent`)
 		body, _ := res.(string)
 		if len(body) > 500 {
 			body = body[:500]
 		}
 		fmt.Printf("%s Page (%s): %s\n", ts(), page.URL(), body)
-		return nil
+		return fmt.Errorf("upload field not found; page: %s", strings.TrimSpace(body))
 	}
 
 	// ── Phase 2: Upload ALF ───────────────────────────────────────────────────
@@ -419,16 +420,13 @@ func run(page playwright.Page) error {
 	fmt.Printf("%s [DBG] commit button exists (after wait): %v\n", ts(), commitExists)
 
 	if !commitExists {
-		snap(page, "no-commit.png")
-		fmt.Printf("%s [WARN] commit button not found; screenshot → no-commit.png\n", ts())
-		return nil
+		return fmt.Errorf("commit button not found after license selection")
 	}
 
 	res, _ := page.Evaluate(`document.querySelector('input.btn.mb10')?.value`)
 	commitVal, _ := res.(string)
 	fmt.Printf("%s [DBG] commit button value: %q\n", ts(), commitVal)
 
-	snap(page, "pre-poll.png")
 	page.Evaluate(`document.querySelector('input.btn.mb10')?.click()`)
 	sleep(1000)
 
@@ -441,9 +439,7 @@ func run(page playwright.Page) error {
 		return nil
 	}, playwright.PageExpectDownloadOptions{Timeout: playwright.Float(30000)})
 	if err != nil {
-		snap(page, "state.png")
-		fmt.Printf("%s [WARN] no ULF download; state.png saved\n", ts())
-		return nil
+		return fmt.Errorf("ULF download timed out")
 	}
 	if err := download.SaveAs(ulfDest); err != nil {
 		return fmt.Errorf("save ulf: %w", err)
@@ -466,7 +462,7 @@ func main() {
 	flag.StringVar(&alfFile, "alf", "", "path to .alf license request file")
 	flag.StringVar(&totpKey, "totp", "", "base32 TOTP secret (required if 2FA is enabled)")
 	flag.StringVar(&ulfName, "ulf-name", "unity.ulf", "ULF output filename")
-	flag.StringVar(&outputDir, "output", ".output", "directory for all output files (ULF, screenshots, HTML)")
+	flag.StringVar(&outputDir, "output", ".output", "directory for output files (ULF, error dumps)")
 	flag.StringVar(&dataDir, "data-dir", "", "persistent Chrome profile dir (reuses session, skips login)")
 	flag.BoolVar(&skipInstall, "skip-install", false, "skip playwright browser installation check (saves ~10–15s when browser is pre-installed)")
 	flag.Parse()
@@ -483,6 +479,24 @@ func main() {
 		outputDir = filepath.Join(cwd, outputDir)
 	}
 	os.MkdirAll(outputDir, 0755)
+
+	// Validate inputs before starting browser (fail fast)
+	if _, err := os.Stat(alfFile); err != nil {
+		log.Fatalf("alf file not found: %v", err)
+	}
+	if totpKey != "" {
+		for _, c := range strings.ToUpper(totpKey) {
+			if !strings.ContainsRune(b32Alphabet, c) {
+				log.Fatalf("totp: invalid base32 character %q", c)
+			}
+		}
+		if len(totpKey) < 16 {
+			log.Fatalf("totp: key too short (%d chars, need ≥16)", len(totpKey))
+		}
+	}
+	if dataDir != "" && !filepath.IsAbs(dataDir) {
+		dataDir = filepath.Join(cwd, dataDir)
+	}
 
 	// --skip-install: skip browser download (pre-installed browsers, e.g. Docker).
 	if !skipInstall {
@@ -505,9 +519,6 @@ func main() {
 
 	var context playwright.BrowserContext
 	if dataDir != "" {
-		if !filepath.IsAbs(dataDir) {
-			dataDir = filepath.Join(cwd, dataDir)
-		}
 		fmt.Printf("%s [INFO] Using persistent profile: %s\n", ts(), dataDir)
 		context, err = pw.Chromium.LaunchPersistentContext(dataDir, launchOpts)
 	} else {

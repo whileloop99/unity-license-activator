@@ -79,12 +79,11 @@ docker compose run --rm activator \
 
 All generated files go to `--output` directory (default `.output`):
 
-| File         | Content                                        |
-|--------------|------------------------------------------------|
-| `{ulf-name}` | Downloaded license file (default: `unity.ulf`) |
-| `state.png`  | Screenshot on failure                          |
-| `error.png`  | Screenshot on crash                            |
-| `error.html` | Page HTML on crash                             |
+| File             | Content                                            |
+|------------------|----------------------------------------------------|
+| `{ulf-name}`     | Downloaded license file (default: `unity.ulf`)     |
+| `error.png`      | Screenshot on crash                                |
+| `error.html`     | Page HTML on crash                                 |
 
 ## How it works
 
@@ -92,9 +91,11 @@ All generated files go to `--output` directory (default `.output`):
 2. Fill email → Continue → Fill password → Sign in
 3. If TFA prompted: compute TOTP (RFC 6238), fill, submit
 4. Navigate to license page with active session
-5. Upload `.alf` file → server generates `.ulf`
-6. Select personal license → submit → download `.ulf`
-7. Save `.ulf` to output directory
+5. Accept ToS if prompted
+6. Upload `.alf` file → server generates `.ulf`
+7. If session expired after upload: re-login and retry automatically
+8. Select personal license → submit → download `.ulf`
+9. Save `.ulf` to output directory
 
 With `--data-dir`, the Chrome user profile persists between runs. Session cookies
 carry over, skipping steps 1–4 on subsequent runs (~18s vs ~34s).
