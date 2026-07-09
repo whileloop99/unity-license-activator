@@ -1,0 +1,29 @@
+# ── Unity License Activator — Docker Compose ─────────────────────────────────
+# Usage:
+#   docker compose run --rm activator \
+#     --email=user@example.com \
+#     --password=secret \
+#     --alf=/data/Unity_v2022.3.31f1.alf \
+#     --totp=JBSWY3DPEHPK3PXP
+#
+# Or define env vars in .env:
+#   EMAIL=user@example.com
+#   PASSWORD=secret
+#   TOTP=JBSWY3DPEHPK3PXP
+#   ALF_FILE=Unity_v2022.3.31f1.alf
+#
+# Then:
+#   docker compose run --rm activator
+
+services:
+  activator:
+    build: .
+    image: unity-license-activator:latest
+    volumes:
+      - ./Unity_v2022.3.31f1.alf:/data/Unity_v2022.3.31f1.alf:ro
+      - ./.output:/data/.output
+    init: true
+    command: >
+      --email=${EMAIL} --password=${PASSWORD}
+      --alf=/data/${ALF_FILE} --totp=${TOTP}
+      --output=/data/.output

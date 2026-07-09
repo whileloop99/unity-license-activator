@@ -1,0 +1,9 @@
+.output/
+.chrome-data/
+.git/
+.gitignore
+.env
+*.exe
+*.alf
+*.ulf
+README.md

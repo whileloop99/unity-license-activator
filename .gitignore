@@ -1,2 +1,19 @@
-/.chrome-data
-/.output
+# Dependencies
+vendor/
+
+# Build artifacts
+*.exe
+*.ulf
+*.alf
+
+# Runtime data
+.chrome-data/
+.output/
+
+# Secrets
+.env
+
+# IDE
+.idea/
+.vscode/
+*.swp
